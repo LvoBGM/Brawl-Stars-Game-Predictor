@@ -9,7 +9,7 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
-STARTING_TAG = "GRYYRYCLL"
+STARTING_TAG = "#GRYYRYCLL"
 
 PLAYER_DATA_COUNT = 10
 
@@ -51,6 +51,10 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
     Scrapes battle logs from the Brawl Stars API, iterating through players
     they played with to gather a dataset of unique matches.
     """
+    
+    if starting_tag[0] != "#":
+        print(f"Starting tag should be in format #S0MELETTER5. Your input: {starting_tag}")
+        return
 
     headers = {
         "Authorization": f"Bearer {key}"
