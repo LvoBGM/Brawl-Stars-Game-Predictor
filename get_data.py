@@ -65,7 +65,14 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
     
     # A queue to hold players we need to check (FIFO)
     player_queue = deque([starting_tag])
+
+    # csv file details
     file_name = "brawl_stars_matches.csv"
+    headers_list = ["Game Mode", "P1_Name", "P2_Name", "P3_Name", "P4_Name", "P5_Name", "P6_Name"]
+    with open(file_name, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers_list)
+
     players_scraped = 0
     
     print(f"Starting scrape. Target: {players_to_check} players.")
@@ -99,7 +106,7 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
             match_map = event.get("map")
             battle_time = match.get("battleTime")
             
-            # 1. Filter by game mode and map (if provided)
+            # Filter by game mode and map (if provided)
             if game_mode and match_mode != game_mode:
                 continue
             if map_name and match_map != map_name:
