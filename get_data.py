@@ -9,19 +9,26 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
-STARTING_TAG = "#GRYYRYCLL"
+STARTING_TAG = os.getenv("TAG")
 
 PLAYER_DATA_COUNT = 10
 
-def main():
-    scrape_data(STARTING_TAG, API_KEY, players_to_check=1, game_mode="brawlBall", map_name="Goalies")
+TRUE_BLUE_RESULT_MAP = {
+    "victory": 1,
+    "draw": 0,
+    "defeat": -1
+}
 
-def write_match_data(match, file_name, gamemode):
+def main():
+    scrape_data(STARTING_TAG, API_KEY, players_to_check=1, game_mode="brawlBall") # map_name="Goalies"
+
+def write_match_data(match, file_name, gamemode, player_tag):
     """
     Writes match data to a CSV file. 
     Built to be easily expandable for pulling trophies, wins, etc.
     """
     players = []
+    tags = []
     
     # Brawl Stars API structure splits players into 'teams' (3v3, Duo Showdown) 
     # or 'players' (Solo Showdown, etc.)
@@ -29,6 +36,7 @@ def write_match_data(match, file_name, gamemode):
         for team in match["battle"]["teams"]:
             for player in team:
                 players.append(player)
+                tags.append(player["tag"])
     elif "players" in match["battle"]:
         for player in match["battle"]["players"]:
             players.append(player)
@@ -38,7 +46,16 @@ def write_match_data(match, file_name, gamemode):
         writer = csv.writer(f)
         
         # Pull player name
-        row_data = [player['name'] for player in players]
+        row_data = []
+        for player in players:
+            row_data.append(player['name'])
+        
+        # Insert game result
+        if "teams" in match["battle"]:
+            if player_tag in tags[:3]:
+                row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+            else:
+                row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
         
         # Insert the gamemode at the very beginning of the row
         row_data.insert(0, gamemode)
@@ -67,7 +84,7 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
     player_queue = deque([starting_tag])
 
     # csv file details
-    file_name = "brawl_stars_matches.csv"
+    file_name = CSV_FILE
     headers_list = ["Game Mode", "P1_Name", "P2_Name", "P3_Name", "P4_Name", "P5_Name", "P6_Name"]
     with open(file_name, mode='a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
@@ -129,7 +146,7 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
             if unique_match_id not in checked_matches:
                 # New match found! Mark it and write it.
                 checked_matches.add(unique_match_id)
-                write_match_data(match, file_name, match_mode)
+                write_match_data(match, file_name, match_mode, current_tag)
                 
             # Add newly discovered players to our queue
             for tag in match_player_tags:
