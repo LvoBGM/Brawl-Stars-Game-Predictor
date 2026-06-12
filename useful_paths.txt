@@ -1,0 +1,31 @@
+match['battleTime'] — The exact timestamp of the match.
+match['event']['id'] — The unique ID of the event/map.
+match['event']['mode'] — The game mode name (e.g., gemGrab, soloShowdown).
+match['event']['map'] — The name of the map played.
+match['battle']['mode'] — The game mode type inside the battle object.
+match['battle']['type'] — The match type (e.g., ranked, friendly).
+match['battle']['duration'] — Match duration in seconds (not available for Showdown).
+
+                  Showdown                             3v3
+player = match[i]['battle']['players'][p] / match[i]['battle']['teams'][t][p]
+
+player["tag"] — The player's unique game tag.
+player["name"] — The player's in-game username.
+player["brawler"]["id"] — The unique game ID for the Brawler.
+player["brawler"]["name"] — The name of the Brawler (e.g., SHELLY).
+player["brawler"]["power"] — The Power Level of the Brawler (1 to 11).
+player["brawler"]["trophies"] — The specific trophy count the player had on that Brawler.
+
+                        PLAYER SPECIFIC INFO  
+            https://api.brawlstars.com/v1/players/{playerTag}  
+player['trophies'] — Their current total trophy count.
+player['highestTrophies'] — The highest total trophies they've ever reached.
+player['expLevel'] — Their experience level.
+player['3vs3Victories'] — Total 3v3 match wins.
+player['soloVictories'] — Total Solo Showdown 1st place finishes.
+player['duoVictories'] — Total Duo Showdown 1st place finishes.
+player['club']['name'] — The name of the Club they are currently in.
+player['brawlers'][i]['highestTrophies'] — The highest trophies they've ever pushed on that specific Brawler.
+player['brawlers'][i]['rank'] — The highest Rank milestone achieved (Rank 1–35+).
+player['brawlers'][i]['gadgets'] — A list of gadgets they own for that Brawler.
+player['brawlers'][i]['starPowers'] — A list of Star Powers they own for that Brawler.
