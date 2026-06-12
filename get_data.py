@@ -41,7 +41,6 @@ def write_match_data(match, file_name, gamemode, player_tag, players_info):
     elif "players" in match["battle"]:
         for player in match["battle"]["players"]:
             players.append(player)
-            
     # Open the CSV file in append mode
     with open(file_name, mode='a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
@@ -49,7 +48,7 @@ def write_match_data(match, file_name, gamemode, player_tag, players_info):
         # Pull player name
         row_data = []
         for player_info in players_info:
-            row_data.append(player_info['trophies'])
+            row_data.append(player_info['name'])
         
         # Insert game result
         if "teams" in match["battle"]:
@@ -152,6 +151,7 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
             if unique_match_id not in checked_matches:
                 # Make a list of dicts containing all info about the 6-10 players in a match
                 players_info = []
+                fail = False
                 for tag in match_player_tags:
                     # No need to query the player we are searching many times
                     if tag == current_tag:
@@ -159,11 +159,14 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
                         continue
                     
                     # Add player info
-                    # TODO - There is an edge case where this fails and doesnt return enough info for a match, I'll fix that later
                     if response := get_player_info(tag, headers):
                         players_info.append(response.json())
-                    
-
+                    else:
+                        fail = True
+                        break
+                if fail:
+                    print("Failure evaluating match data, broken tags prob")
+                    continue
                 # New match found! Mark it and write it.
                 checked_matches.add(unique_match_id)
                 write_match_data(match, file_name, match_mode, current_tag, players_info)
@@ -184,7 +187,6 @@ def get_player_info(tag, headers):
     if response.status_code != 200:
         print(f"Data for {tag} unavalable - API Error (Status: {response.status_code})")
         return
-    print("a")
     return response
 
 if __name__ == "__main__":
