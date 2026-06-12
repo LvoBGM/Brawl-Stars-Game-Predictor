@@ -1,5 +1,4 @@
 import requests
-from typing import Literal, List
 import csv
 import os
 from dotenv import load_dotenv
@@ -10,6 +9,8 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
+
+headers_list = ["Game Mode", "P1_Wins", "P2_Wins", "P3_Wins", "P4_Wins", "P5_Wins", "P6_Wins"]
 
 PLAYER_DATA_COUNT = 10
 
@@ -22,7 +23,7 @@ TRUE_BLUE_RESULT_MAP = {
 def main():
     scrape_data(STARTING_TAG, API_KEY, players_to_check=1, game_mode="brawlBall") # map_name="Goalies"
 
-def write_match_data(match, file_name, gamemode, player_tag):
+def write_match_data(match, file_name, gamemode, player_tag, players_info):
     """
     Writes match data to a CSV file. 
     Built to be easily expandable for pulling trophies, wins, etc.
@@ -47,8 +48,8 @@ def write_match_data(match, file_name, gamemode, player_tag):
         
         # Pull player name
         row_data = []
-        for player in players:
-            row_data.append(player['name'])
+        for player_info in players_info:
+            row_data.append(player_info['trophies'])
         
         # Insert game result
         if "teams" in match["battle"]:
@@ -85,7 +86,6 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
 
     # csv file details
     file_name = CSV_FILE
-    headers_list = ["Game Mode", "P1_Name", "P2_Name", "P3_Name", "P4_Name", "P5_Name", "P6_Name"]
     with open(file_name, mode='a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(headers_list)
@@ -97,9 +97,16 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
     while player_queue and players_scraped < players_to_check:
         # Get the next player in the queue
         current_tag = player_queue.popleft()
-        
+
         # Format the tag
         formatted_tag = current_tag.replace("#", "%23")
+
+        # Cach current player info for later
+        if response := get_player_info(formatted_tag, headers):
+            current_player_info = response.json()
+        else:
+            continue
+        
         url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
         
         response = requests.get(url, headers=headers)
@@ -138,15 +145,28 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
             elif "players" in battle:
                 for p in battle["players"]:
                     match_player_tags.append(p["tag"])
-                    
+
             # Check for duplicate matches
-            match_player_tags.sort()
-            unique_match_id = f"{battle_time}_{''.join(match_player_tags)}"
+            unique_match_id = f"{battle_time}_{''.join(sorted(match_player_tags))}"
             
             if unique_match_id not in checked_matches:
+                # Make a list of dicts containing all info about the 6-10 players in a match
+                players_info = []
+                for tag in match_player_tags:
+                    # No need to query the player we are searching many times
+                    if tag == current_tag:
+                        players_info.append(current_player_info)
+                        continue
+                    
+                    # Add player info
+                    # TODO - There is an edge case where this fails and doesnt return enough info for a match, I'll fix that later
+                    if response := get_player_info(tag, headers):
+                        players_info.append(response.json())
+                    
+
                 # New match found! Mark it and write it.
                 checked_matches.add(unique_match_id)
-                write_match_data(match, file_name, match_mode, current_tag)
+                write_match_data(match, file_name, match_mode, current_tag, players_info)
                 
             # Add newly discovered players to our queue
             for tag in match_player_tags:
@@ -156,6 +176,16 @@ def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=No
     print("\nScrape complete!")
     print(f"Total unique matches written: {len(checked_matches)}")
 
+
+def get_player_info(tag, headers):
+    """Takes in a tag and headers, returns a responce from the supercell API about player info"""
+    formatted_tag = tag.replace("#", "%23")
+    response = requests.get(f"https://api.brawlstars.com/v1/players/{formatted_tag}", headers=headers)
+    if response.status_code != 200:
+        print(f"Data for {tag} unavalable - API Error (Status: {response.status_code})")
+        return
+    print("a")
+    return response
 
 if __name__ == "__main__":
     main()
