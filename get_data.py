@@ -125,6 +125,8 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                 match_map = event.get("map")
                 battle_time = match.get("battleTime")
 
+                matches_to_fetch = []
+
                 # Filter by game mode and map (if provided)
                 if game_mode and match_mode != game_mode:
                     continue
@@ -145,37 +147,56 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                 unique_match_id = f"{battle_time}_{''.join(sorted(match_player_tags))}"
 
                 if unique_match_id not in checked_matches:
-                    # Make a list of dicts containing all info about the 6-10 players in a match
-                    players_info = []
-                    tasks = []
-                    async with asyncio.TaskGroup() as tg:
-                        for tag in match_player_tags:
-                            task = tg.create_task(get_player_info(client, tag, headers))
-                            tasks.append(task)
-
-                    # After getting all the info, we put it in the player_info list
-                    fail = False
-                    for task in tasks:
-                        result = task.result()
-                        if result is None:
-                            fail = True
-                            break
-                        players_info.append(result)
-                    if fail:
-                        print("Match contained broken tags prob, skipping...")
-                        break
-
                     # New match found! Mark it and write it.
+                    matches_to_fetch.append(match)
                     checked_matches.add(unique_match_id)
-                    write_match_data(match, file_name, match_mode, current_tag, players_info)
 
                 # Add newly discovered players to our queue
                 for tag in match_player_tags:
                     if tag not in checked_players and tag not in player_queue:
                         player_queue.append(tag)
+
+            battlelog_players = get_battlelog_info(client, matches_to_fetch, headers)
                     
     print("\nScrape complete!")
     print(f"Total unique matches written: {len(checked_matches)}")
+
+async def get_battlelog_info(client, battlelog, headers):
+    """Takes in an async client, battlelog and headers.
+    Returns a dictionary, that contains all matches and player information from the battlelog.
+    """
+    unique_tags = set()
+
+    # Get all tags from the battle log
+    for match in battlelog:
+        battle = match['battle']
+
+        # Differ between 3v3 and Showdown matches
+        if "teams" in battle:
+            for team in battle["teams"]:
+                for player in team:
+                    unique_tags.add(player["tag"])
+        elif "players" in battle:
+            for player in battle["players"]:
+                unique_tags.add(player["tag"])
+
+        # Make a list of dicts containing all info about the 6-10 players in a match
+        players_info = []
+        tasks = []
+        async with asyncio.TaskGroup() as tg:
+            for tag in unique_tags:
+                task = tg.create_task(get_player_info(client, tag, headers))
+                tasks.append(task)
+
+        broken_tags = 0
+        for task in tasks:
+            result = task.result()
+            if result is None:
+                broken_tags += 1
+            players_info.append(result)
+        
+        if broken_tags:
+            print(f"Warning! {broken_tags} broken tag(s) in battlelog!")
 
 
 async def get_player_info(client, tag, headers):
