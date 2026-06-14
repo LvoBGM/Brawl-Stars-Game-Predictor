@@ -117,6 +117,7 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
             players_scraped += 1
             print(f"[{players_scraped}/{players_to_check}] Scraped player log: {current_tag}")
 
+            matches_to_fetch = []
             for match in battle_log:
                 event = match.get("event", {})
                 battle = match.get("battle", {})
@@ -124,8 +125,6 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                 match_mode = event.get("mode")
                 match_map = event.get("map")
                 battle_time = match.get("battleTime")
-
-                matches_to_fetch = []
 
                 # Filter by game mode and map (if provided)
                 if game_mode and match_mode != game_mode:
@@ -156,7 +155,8 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                     if tag not in checked_players and tag not in player_queue:
                         player_queue.append(tag)
 
-            battlelog_players = get_battlelog_info(client, matches_to_fetch, headers)
+            battlelog_players = await get_battlelog_info(client, matches_to_fetch, headers)
+            print(len(battlelog_players))
                     
     print("\nScrape complete!")
     print(f"Total unique matches written: {len(checked_matches)}")
@@ -166,37 +166,45 @@ async def get_battlelog_info(client, battlelog, headers):
     Returns a dictionary, that contains all matches and player information from the battlelog.
     """
     unique_tags = set()
+    players_info = []
 
     # Get all tags from the battle log
     for match in battlelog:
+        match_tags = set()
         battle = match['battle']
 
         # Differ between 3v3 and Showdown matches
         if "teams" in battle:
             for team in battle["teams"]:
                 for player in team:
-                    unique_tags.add(player["tag"])
+                    if player["tag"] not in unique_tags:
+                        match_tags.add(player["tag"])
+                        unique_tags.add(player["tag"])
         elif "players" in battle:
             for player in battle["players"]:
-                unique_tags.add(player["tag"])
+                if player["tag"] not in unique_tags:
+                    match_tags.add(player["tag"])
+                    unique_tags.add(player["tag"])
 
         # Make a list of dicts containing all info about the 6-10 players in a match
-        players_info = []
         tasks = []
         async with asyncio.TaskGroup() as tg:
-            for tag in unique_tags:
+            for tag in match_tags:
                 task = tg.create_task(get_player_info(client, tag, headers))
                 tasks.append(task)
 
-        broken_tags = 0
+        match_player_info = []
         for task in tasks:
             result = task.result()
             if result is None:
-                broken_tags += 1
-            players_info.append(result)
-        
-        if broken_tags:
-            print(f"Warning! {broken_tags} broken tag(s) in battlelog!")
+                print(f"Match has broken tag! Skipping match...")
+                break
+            match_player_info.append(result)
+        else:
+            players_info += match_player_info
+    
+    return players_info
+
 
 
 async def get_player_info(client, tag, headers):
