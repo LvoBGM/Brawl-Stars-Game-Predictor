@@ -163,7 +163,8 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
 
 async def get_battlelog_info(client, battlelog, headers):
     """Takes in an async client, battlelog and headers.
-    Returns a dictionary, that contains all matches and player information from the battlelog.
+    Returns a dictionary, whose keys are tags, that contains all matches and player information from the battlelog.
+    Also removes matches with broken tags from battlelog
     """
     unique_tags = set()
     players_info = {}
@@ -198,6 +199,7 @@ async def get_battlelog_info(client, battlelog, headers):
             result = task.result()
             if result is None:
                 print(f"Match has broken tag! Skipping match...")
+                battlelog.remove(match)
                 break
             match_player_info[result["tag"]] = result
         else:
