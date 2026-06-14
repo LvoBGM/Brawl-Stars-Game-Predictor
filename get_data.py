@@ -156,7 +156,7 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                         player_queue.append(tag)
 
             battlelog_players = await get_battlelog_info(client, matches_to_fetch, headers)
-            print(len(battlelog_players))
+            print(battlelog_players.keys())
                     
     print("\nScrape complete!")
     print(f"Total unique matches written: {len(checked_matches)}")
@@ -166,7 +166,7 @@ async def get_battlelog_info(client, battlelog, headers):
     Returns a dictionary, that contains all matches and player information from the battlelog.
     """
     unique_tags = set()
-    players_info = []
+    players_info = {}
 
     # Get all tags from the battle log
     for match in battlelog:
@@ -193,15 +193,15 @@ async def get_battlelog_info(client, battlelog, headers):
                 task = tg.create_task(get_player_info(client, tag, headers))
                 tasks.append(task)
 
-        match_player_info = []
+        match_player_info = {}
         for task in tasks:
             result = task.result()
             if result is None:
                 print(f"Match has broken tag! Skipping match...")
                 break
-            match_player_info.append(result)
+            match_player_info[result["tag"]] = result
         else:
-            players_info += match_player_info
+            players_info.update(match_player_info)
     
     return players_info
 
