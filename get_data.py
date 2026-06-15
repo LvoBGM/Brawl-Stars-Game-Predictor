@@ -173,6 +173,7 @@ async def get_battlelog_info(client, battlelog, headers):
     players_info = {}
 
     # Get all tags from the battle log
+    broken_matches = []
     for match in battlelog:
         match_tags = set()
         battle = match['battle']
@@ -198,15 +199,21 @@ async def get_battlelog_info(client, battlelog, headers):
                 tasks.append(task)
 
         match_player_info = {}
+        fail = False
         for task in tasks:
             result = task.result()
             if result is None:
                 print(f"Match has broken tag! Skipping match...")
-                battlelog.remove(match)
-                break
+                if match not in broken_matches:
+                    broken_matches.append(match)
+                fail = True
+                continue
             match_player_info[result["tag"]] = result
-        else:
+        if not fail:
             players_info.update(match_player_info)
+
+    for match in broken_matches:
+        battlelog.remove(match)
     
     return players_info
 
