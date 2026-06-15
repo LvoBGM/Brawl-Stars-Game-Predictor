@@ -203,5 +203,45 @@ async def get_player_info(client, tag, headers):
         print(f"Network error fetching {tag}: {e}")
         return None
 
+def print_battle_data(battle_log_item):
+    # Extract the battle time and event details
+    battle_time = battle_log_item.get("battleTime", "Unknown Time")
+    event = battle_log_item.get("event", {})
+    mode = event.get("mode", "Unknown Mode")
+    map_name = event.get("map", "Unknown Map")
+    
+    # Extract the specific details of the battle
+    battle_details = battle_log_item.get("battle", {})
+    result = battle_details.get("result", "N/A")  # victory, defeat, or draw
+    duration = battle_details.get("duration", 0)   # in seconds
+    trophy_change = battle_details.get("trophyChange", 0)
+    
+    print(f"=== Battle Log Entry ===")
+    print(f"Time: {battle_time}")
+    print(f"Mode: {mode.title()} | Map: {map_name}")
+    print(f"Result: {result.upper()} | Duration: {duration}s | Trophies: {trophy_change:+d}")
+    print("-" * 24)
+
+    # Handle 3v3 modes (organized by 'teams')
+    if "teams" in battle_details:
+        print("Teams Overview:")
+        for i, team in enumerate(battle_details["teams"], 1):
+            print(f"  Team {i}:")
+            for player in team:
+                brawler = player.get("brawler", {})
+                print(f"    - {player.get('name')} | Brawler: {brawler.get('name')} (Tag {player["tag"]})")
+                
+    # Handle Showdown / Solo modes (organized by 'players')
+    elif "players" in battle_details:
+        print("Players Standings:")
+        # Sort by rank if available, otherwise just list them
+        sorted_players = sorted(battle_details["players"], key=lambda x: x.get("rank", 99))
+        for player in sorted_players:
+            brawler = player.get("brawler", {})
+            rank = player.get("rank", "?")
+            print(f"  Rank {rank}: {player.get('name')} | Brawler: {brawler.get('name')} (Power {brawler.get('power')})")
+            
+    print("=" * 24 + "\n")
+
 if __name__ == "__main__":
     main()
