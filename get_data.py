@@ -12,8 +12,6 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-headers_list = ["Game Mode", "P1_Wins", "P2_Wins", "P3_Wins", "P4_Wins", "P5_Wins", "P6_Wins"]
-
 PLAYER_DATA_COUNT = 10
 
 TRUE_BLUE_RESULT_MAP = {
@@ -44,12 +42,6 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
     
     # A queue to hold players we need to check (FIFO)
     player_queue = deque([starting_tag])
-
-    # csv file details
-    file_name = CSV_FILE
-    with open(file_name, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(headers_list)
 
     players_scraped = 0
     
