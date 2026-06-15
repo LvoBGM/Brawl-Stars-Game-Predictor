@@ -31,3 +31,17 @@ def write_match_data_1(file_name, match_tags, match, players_info, player_tag):
 
         # Write to the CSV
         writer.writerow(row_data)
+
+def write_match_data_2(file_name, match_tags, match, players_info, player_tag):
+    """Writes player tag"""
+    with open(file_name, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+
+        row_data = []
+
+        for tag in match_tags:
+            print(tag)
+            row_data.append(tag)
+
+        # Write to the CSV
+        writer.writerow(row_data)
