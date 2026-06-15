@@ -155,8 +155,11 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                     if tag not in checked_players and tag not in player_queue:
                         player_queue.append(tag)
 
+            # Get all player information we will need
             battlelog_players = await get_battlelog_info(client, matches_to_fetch, headers)
-            print(battlelog_players.keys())
+
+            write_battlelog_info(matches_to_fetch, battlelog_players, current_tag)
+            
                     
     print("\nScrape complete!")
     print(f"Total unique matches written: {len(checked_matches)}")
@@ -207,7 +210,43 @@ async def get_battlelog_info(client, battlelog, headers):
     
     return players_info
 
+def write_battlelog_info(battlelog, players_info, player_tag):
+    """Write the wanted information from the battlelog into the data csv file"""
+    for match in battlelog:
+        players = []
+        tags = []
 
+        # Brawl Stars API structure splits players into 'teams' (3v3, Duo Showdown) 
+        # or 'players' (Solo Showdown, etc.)
+        if "teams" in match["battle"]:
+            for team in match["battle"]["teams"]:
+                for player in team:
+                    players.append(player)
+                    tags.append(player["tag"])
+        elif "players" in match["battle"]:
+            for player in match["battle"]["players"]:
+                players.append(player)
+        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+
+            # Pull player name
+            row_data = []
+
+            # Insert the gamemode at the very beginning of the row
+            row_data.insert(0, match['event']['mode'])
+
+            for tag, player in zip(tags, players):
+                row_data.append(players_info[tag]["name"])
+
+            # Insert game result
+            if "teams" in match["battle"]:
+                if player_tag in tags[:3]:
+                    row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+                else:
+                    row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+
+            # Write to the CSV
+            writer.writerow(row_data)
 
 async def get_player_info(client, tag, headers):
     """Takes in an async client, tag, and headers.
