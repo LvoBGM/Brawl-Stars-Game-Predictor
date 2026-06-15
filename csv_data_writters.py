@@ -1,0 +1,33 @@
+import csv
+
+TRUE_BLUE_RESULT_MAP = {
+    "victory": 1,
+    "draw": 0,
+    "defeat": -1
+}
+
+def write_match_data_1(file_name, match_tags, match, players_info, player_tag):
+    """Writes player 3v3 wins, Prestige amounts, brawler picks"""
+    with open(file_name, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+
+        row_data = []
+
+        for i, tag in enumerate(match_tags):
+            in_blue_team = tag in match_tags[:3]
+            team_index = 0 if in_blue_team else 1
+            player_index = i if in_blue_team else i - 3
+
+            row_data.append(players_info[tag]['3vs3Victories'])
+            row_data.append(players_info[tag]['totalPrestigeLevel'])
+            row_data.append(match['battle']['teams'][team_index][player_index]['brawler']['name'])
+
+        # Insert game result
+        if "teams" in match["battle"]:
+            if player_tag in match_tags[:3]:
+                row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+            else:
+                row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+
+        # Write to the CSV
+        writer.writerow(row_data)

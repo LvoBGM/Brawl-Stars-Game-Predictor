@@ -1,10 +1,10 @@
 import requests
-import csv
 import os
 import httpx
 import asyncio
 from dotenv import load_dotenv
 from collections import deque
+from csv_data_writters import write_match_data_1
 
 load_dotenv()
 
@@ -13,12 +13,6 @@ CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
 PLAYER_DATA_COUNT = 10
-
-TRUE_BLUE_RESULT_MAP = {
-    "victory": 1,
-    "draw": 0,
-    "defeat": -1
-}
 
 def main():
     asyncio.run(scrape_data(STARTING_TAG, API_KEY, players_to_check=1, game_mode="brawlBall")) # map_name="Goalies"
@@ -185,27 +179,11 @@ def write_battlelog_info(battlelog, players_info, player_tag):
         elif "players" in match["battle"]:
             for player in match["battle"]["players"]:
                 players.append(player)
-        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
+                tags.append(player["tag"])
 
-            # Pull player name
-            row_data = []
+        # TODO: Refactor so that the writter to the csv only eneds the players list and not the tags as well
+        write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
 
-            # Insert the gamemode at the very beginning of the row
-            row_data.insert(0, match['event']['mode'])
-
-            for tag, player in zip(tags, players):
-                row_data.append(players_info[tag]["name"])
-
-            # Insert game result
-            if "teams" in match["battle"]:
-                if player_tag in tags[:3]:
-                    row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
-                else:
-                    row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
-
-            # Write to the CSV
-            writer.writerow(row_data)
 
 async def get_player_info(client, tag, headers):
     """Takes in an async client, tag, and headers.
