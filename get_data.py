@@ -12,7 +12,16 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-MATCHES_TO_FETCH = 3000
+MATCHES_TO_FETCH = 50
+
+# How many request we send at once
+CONCURRENCY_LIMIT = 18
+semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
+# Wrapper function to apply the concurrency limit to your API calls
+async def fetch_player_safely(client, tag, headers):
+    async with semaphore:
+        return await get_player_info(client, tag, headers)
 
 def main():
     asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Pinball Dreams"))
@@ -122,12 +131,13 @@ async def get_battlelog_info(client, battlelog, headers):
     unique_tags = set()
     players_info = {}
 
-    # Get all tags from the battle log
-    broken_matches = []
+    tags_to_fetch = set()
+    match_requirements = []
+    
     for match in battlelog:
         match_tags = set()
-        battle = match['battle']
-
+        battle = match["battle"]
+    
         # Differ between 3v3 and Showdown matches
         if "teams" in battle:
             for team in battle["teams"]:
@@ -138,31 +148,45 @@ async def get_battlelog_info(client, battlelog, headers):
             for player in battle["players"]:
                 if player["tag"] not in unique_tags:
                     match_tags.add(player["tag"])
-
-        # Make a list of dicts containing all info about the 6-10 players in a match
-        tasks = []
-        async with asyncio.TaskGroup() as tg:
-            for tag in match_tags:
-                task = tg.create_task(get_player_info(client, tag, headers))
-                tasks.append(task)
-
-        match_player_info = {}
-        fail = False
-        for task in tasks:
-            result = task.result()
-            if result is None:
-                if match not in broken_matches:
-                    broken_matches.append(match)
-                fail = True
-                continue
-            match_player_info[result["tag"]] = result
-        if not fail:
-            unique_tags.update(match_tags)
-            players_info.update(match_player_info)
-
-    for match in broken_matches:
-        battlelog.remove(match)
     
+        # Track tags needed for this specific run
+        tags_to_fetch.update(match_tags)
+        match_requirements.append((match, match_tags))
+
+    unfiltered_fetched_info = {}
+    if tags_to_fetch:
+        async with asyncio.TaskGroup() as tg:
+            # Create tasks mapped by tag
+            tasks = {
+                tag: tg.create_task(fetch_player_safely(client, tag, headers)) 
+                for tag in tags_to_fetch
+            }
+
+        # Extract results once the TaskGroup finishes
+        for tag, task in tasks.items():
+            result = task.result()
+            if result is not None:
+                unfiltered_fetched_info[tag] = result
+
+    # Filter out broken matches
+    broken_matches = []
+    for match, match_tags in match_requirements:
+        fail = False
+        match_player_info = {}
+
+        for tag in match_tags:
+            # If tag is not broken
+            if tag in unfiltered_fetched_info:
+                match_player_info[tag] = unfiltered_fetched_info[tag]
+            else:
+                fail = True
+
+        if fail:
+            if match not in broken_matches:
+                broken_matches.append(match)
+                battlelog.remove(match)
+        else:
+            players_info.update(match_player_info)
     return players_info
 
 def write_battlelog_info(battlelog, players_info, player_tag):
@@ -207,7 +231,7 @@ async def get_player_info(client, tag, headers):
         response = await client.get(url, headers=headers, timeout=10.0)
         
         if response.status_code != 200:
-            # print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
+            print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
             return None
         return response.json()
         
