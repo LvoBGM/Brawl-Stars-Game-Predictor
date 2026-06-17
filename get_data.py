@@ -108,13 +108,13 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
                     battlelog.append(match)
                     checked_matches.add(unique_match_id)
 
-                # Add newly discovered players to our queue
-                for tag in match_player_tags:
-                    if tag not in checked_players and tag not in player_queue:
-                        player_queue.append(tag)
-
             # Get all player information we will need
             battlelog_players = await get_battlelog_info(client, battlelog, headers)
+
+            # Add new tags to the queue
+            for tag in battlelog_players.keys():
+                if tag not in checked_players and tag not in player_queue:
+                        player_queue.append(tag)
 
             matches_scraped += len(battlelog)
             write_battlelog_info(battlelog, battlelog_players, current_tag)
@@ -231,7 +231,7 @@ async def get_player_info(client, tag, headers):
         response = await client.get(url, headers=headers, timeout=10.0)
         
         if response.status_code != 200:
-            print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
+            # print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
             return None
         return response.json()
         
