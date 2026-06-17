@@ -63,7 +63,7 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
             players_scraped += 1
             print(f"[{players_scraped}/{players_to_check}] Scraped player log: {current_tag}")
 
-            matches_to_fetch = []
+            battlelog = []
             for match in battle_log:
                 event = match.get("event", {})
                 battle = match.get("battle", {})
@@ -93,7 +93,7 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
 
                 if unique_match_id not in checked_matches:
                     # New match found! Mark it and write it.
-                    matches_to_fetch.append(match)
+                    battlelog.append(match)
                     checked_matches.add(unique_match_id)
 
                 # Add newly discovered players to our queue
@@ -102,9 +102,10 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                         player_queue.append(tag)
 
             # Get all player information we will need
-            battlelog_players = await get_battlelog_info(client, matches_to_fetch, headers)
+            battlelog_players = await get_battlelog_info(client, battlelog, headers)
 
-            write_battlelog_info(matches_to_fetch, battlelog_players, current_tag)
+            matches_scraped += len(battlelog)
+            write_battlelog_info(battlelog, battlelog_players, current_tag)
             
                     
     print("\nScrape complete!")
