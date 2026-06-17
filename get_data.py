@@ -4,7 +4,7 @@ import httpx
 import asyncio
 from dotenv import load_dotenv
 from collections import deque
-from csv_data_writters import write_match_data_1
+from csv_data_writters import write_match_data_1, write_match_data_2
 
 load_dotenv()
 
@@ -12,12 +12,12 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-PLAYER_DATA_COUNT = 10
+MATCHES_TO_FETCH = 3000
 
 def main():
-    asyncio.run(scrape_data(STARTING_TAG, API_KEY, players_to_check=1, game_mode="brawlBall")) # map_name="Goalies"
+    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Pinball Dreams"))
 
-async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_name=None):
+async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_name=None):
     """
     Scrapes battle logs from the Brawl Stars API, iterating through players
     they played with to gather a dataset of unique matches.
@@ -37,11 +37,11 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
     # A queue to hold players we need to check (FIFO)
     player_queue = deque([starting_tag])
 
-    players_scraped = 0
+    matches_scraped = 0
     
-    print(f"Starting scrape. Target: {players_to_check} players.")
+    print(f"Starting scrape. Target: {matches_to_fetch} matches.")
     async with httpx.AsyncClient() as client:
-        while player_queue and players_scraped < players_to_check:
+        while player_queue and matches_scraped < matches_to_fetch:
             # Get the next player in the queue
             current_tag = player_queue.popleft()
 
@@ -58,16 +58,15 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
 
             battle_log = response.json().get("items", [])
 
-            # Mark player as checked and increment our counter
+            # Mark player as checked
             checked_players.add(current_tag)
-            players_scraped += 1
-            print(f"[{players_scraped}/{players_to_check}] Scraped player log: {current_tag}")
+            print(f"[{matches_scraped}/{matches_to_fetch}] Scraped player log: {current_tag}")
 
             battlelog = []
             for match in battle_log:
                 event = match["event"]
                 battle = match["battle"]
-                
+
                 match_mode = event["mode"]
                 match_map = event["map"]
                 battle_time = match["battleTime"]
@@ -76,6 +75,10 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
                 if game_mode and match_mode != game_mode:
                     continue
                 if map_name and match_map != map_name:
+                    continue
+
+                # Ignore friendly matches
+                if match["battle"]["type"] == "friendly":
                     continue
 
                 # Extract player tags from the match
@@ -109,7 +112,7 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
             
                     
     print("\nScrape complete!")
-    print(f"Total unique matches written: {len(checked_matches)}")
+    print(f"Total unique matches written: {matches_scraped}")
 
 async def get_battlelog_info(client, battlelog, headers):
     """Takes in an async client, battlelog and headers.
@@ -131,12 +134,10 @@ async def get_battlelog_info(client, battlelog, headers):
                 for player in team:
                     if player["tag"] not in unique_tags:
                         match_tags.add(player["tag"])
-                        unique_tags.add(player["tag"])
         elif "players" in battle:
             for player in battle["players"]:
                 if player["tag"] not in unique_tags:
                     match_tags.add(player["tag"])
-                    unique_tags.add(player["tag"])
 
         # Make a list of dicts containing all info about the 6-10 players in a match
         tasks = []
@@ -150,13 +151,13 @@ async def get_battlelog_info(client, battlelog, headers):
         for task in tasks:
             result = task.result()
             if result is None:
-                print(f"Match has broken tag! Skipping match...")
                 if match not in broken_matches:
                     broken_matches.append(match)
                 fail = True
                 continue
             match_player_info[result["tag"]] = result
         if not fail:
+            unique_tags.update(match_tags)
             players_info.update(match_player_info)
 
     for match in broken_matches:
@@ -167,6 +168,10 @@ async def get_battlelog_info(client, battlelog, headers):
 def write_battlelog_info(battlelog, players_info, player_tag):
     """Write the wanted information from the battlelog into the data csv file"""
     for match in battlelog:
+        # ignore draws for now
+        if match["battle"]["result"] == "draw":
+            continue
+
         players = []
         tags = []
 
@@ -183,7 +188,13 @@ def write_battlelog_info(battlelog, players_info, player_tag):
                 tags.append(player["tag"])
 
         # TODO: Refactor so that the writter to the csv only eneds the players list and not the tags as well
+        # There might be a broken tag in a match still, so um ignore it (TODO: fix this this is a bandaid solution)
+        # #JGG9CG009 broken player
         write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
+        # try:
+        #     write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
+        # except KeyError:
+        #     continue
 
 
 async def get_player_info(client, tag, headers):
@@ -196,7 +207,7 @@ async def get_player_info(client, tag, headers):
         response = await client.get(url, headers=headers, timeout=10.0)
         
         if response.status_code != 200:
-            print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
+            # print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
             return None
         return response.json()
         
