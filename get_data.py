@@ -65,12 +65,12 @@ async def scrape_data(starting_tag, key, players_to_check, game_mode=None, map_n
 
             battlelog = []
             for match in battle_log:
-                event = match.get("event", {})
-                battle = match.get("battle", {})
-
-                match_mode = event.get("mode")
-                match_map = event.get("map")
-                battle_time = match.get("battleTime")
+                event = match["event"]
+                battle = match["battle"]
+                
+                match_mode = event["mode"]
+                match_map = event["map"]
+                battle_time = match["battleTime"]
 
                 # Filter by game mode and map (if provided)
                 if game_mode and match_mode != game_mode:
