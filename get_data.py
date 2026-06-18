@@ -12,10 +12,10 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-MATCHES_TO_FETCH = 50
+MATCHES_TO_FETCH = 500
 
 # How many request we send at once
-CONCURRENCY_LIMIT = 18
+CONCURRENCY_LIMIT = 20
 semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
 # Wrapper function to apply the concurrency limit to your API calls
@@ -24,7 +24,7 @@ async def fetch_player_safely(client, tag, headers):
         return await get_player_info(client, tag, headers)
 
 def main():
-    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Pinball Dreams"))
+    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="gemGrab")) # , map_name="Pinball Dreams"
 
 async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_name=None):
     """
@@ -231,6 +231,8 @@ async def get_player_info(client, tag, headers):
         response = await client.get(url, headers=headers, timeout=10.0)
         
         if response.status_code != 200:
+            if response.status_code == 429:
+                print(f"Data for {tag} unavailable - Too many requests")
             # print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
             return None
         return response.json()

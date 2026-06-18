@@ -11,7 +11,7 @@ TEST_SIZE = 0.4
 
 # Brawler name are currently strings, tell catboost where these are so that it can handle them
 PLAYERS_PER_MATCH = 6
-CAT_FEATURES_INDICES = [x+len(FEATURES) for x in range(PLAYERS_PER_MATCH)]
+CAT_FEATURES_INDICES = [x*len(FEATURES) for x in range(PLAYERS_PER_MATCH)]
 
 def main():
     # Check command-line arguments
