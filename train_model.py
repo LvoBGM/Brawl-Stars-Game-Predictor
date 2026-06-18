@@ -5,8 +5,13 @@ import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from csv_data_writters import FEATURES as FEATURES
 
 TEST_SIZE = 0.4
+
+# Brawler name are currently strings, tell catboost where these are so that it can handle them
+PLAYERS_PER_MATCH = 6
+CAT_FEATURES_INDICES = [x+len(FEATURES) for x in range(PLAYERS_PER_MATCH)]
 
 def main():
     # Check command-line arguments
@@ -19,9 +24,6 @@ def main():
     X = pd.DataFrame(evidence)
     y = labels
 
-    # Brawler name are currently strings, tell catboost where these are so that it can handle them
-    cat_features_indices = [2, 5, 8, 11, 14, 17]
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE
     )
@@ -33,7 +35,7 @@ def main():
         verbose=10
     )
 
-    model.fit(X_train, y_train, cat_features=cat_features_indices)
+    model.fit(X_train, y_train, cat_features=CAT_FEATURES_INDICES)
 
     predictions = model.predict(X_test)
     accuracy = accuracy_score(y_test, predictions)
@@ -66,31 +68,17 @@ def load_data(file_name=None):
         labels = []
 
         for row in reader:
-            evidence.append([
-                int(row[0]),  # P1 wins
-                int(row[1]),  # P1 prestige
-                row[2],       # P1 brawler
-
-                int(row[3]),  # P2 wins
-                int(row[4]),  # P2 prestige
-                row[5],       # P2 brawler
-
-                int(row[6]),  # P3 wins
-                int(row[7]),  # P3 prestige
-                row[8],       # P3 brawler
-
-                int(row[9]),  # P4 wins
-                int(row[10]), # P4 prestige
-                row[11],      # P4 brawler
-
-                int(row[12]), # P5 wins
-                int(row[13]), # P5 prestige
-                row[14],      # P5 brawler
-
-                int(row[15]), # P6 wins
-                int(row[16]), # P6 prestige
-                row[17],      # P6 brawler
-            ])
+            match_evidence = []
+            for i in range(PLAYERS_PER_MATCH):
+                base = i * len(FEATURES)
+                match_evidence.extend([
+                    row[base],          # Brawler
+                    int(row[base + 1]), # Wins
+                    int(row[base + 2]), # Prestige
+                    int(row[base + 3])  # Highest ranked elo
+                ])
+            
+            evidence.append(match_evidence)
             labels.append([row[-1]])
     
     return (evidence, labels)
