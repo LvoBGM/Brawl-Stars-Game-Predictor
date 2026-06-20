@@ -13,6 +13,7 @@ CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
 MATCHES_TO_FETCH = 3000
+PLAYERS_TO_SEARCH_CONCURRENTLY = 8 # Amount of players the script will request the battlelogs from at a time
 
 # How many request we send at once
 CONCURRENCY_LIMIT = 20
@@ -45,8 +46,8 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
     checked_players = set()
     checked_matches = set()
     
-    # A queue to hold players we need to check (FIFO)
-    player_queue = deque([starting_tag])
+    player_queue = [starting_tag]
+    player_battlelogs = {}
 
     matches_scraped = 0
     
@@ -54,20 +55,29 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
     async with httpx.AsyncClient() as client:
         while player_queue and matches_scraped < matches_to_fetch:
             # Get the next player in the queue
-            current_tag = player_queue.popleft()
+            current_tag = player_queue.pop(0)
 
-            # Format the tag
-            formatted_tag = current_tag.replace("#", "%23")
+            if current_tag in player_battlelogs:
+                battle_log = player_battlelogs.pop(current_tag)
+            else:   
+                # Return current tag to the start of the queue
+                player_queue.insert(0, starting_tag)
+                # Select tags to fetch
+                tags_to_fetch = player_queue[:PLAYERS_TO_SEARCH_CONCURRENTLY]
 
-            url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
+                api_calls = []
+                for tag in tags_to_fetch:
+                    # Format the tag
+                    formatted_tag = tag.replace("#", "%23")
+                    url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
+                    api_calls.append(get_API_info(client, url, headers))
 
-            response = await get_API_info(client, url, headers)
-
-            if response is None:
-                print(f"Skipping {current_tag} - API Error")
+                responses = await asyncio.gather(*api_calls)
+                for tag, response in zip(tags_to_fetch, responses):
+                    if response is not None:
+                        player_battlelogs[tag] = response["items"]
+                # Restart loop after fetching new data
                 continue
-
-            battle_log = response["items"]
 
             # Mark player as checked
             checked_players.add(current_tag)
