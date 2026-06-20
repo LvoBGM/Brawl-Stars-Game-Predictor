@@ -121,8 +121,12 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
             matches_scraped += len(battlelog)
             write_battlelog_info(battlelog, battlelog_players, current_tag)
             
-                    
-    print("\nScrape complete!")
+    if not player_queue:
+        print("\nNo players left to search")
+    else:
+        print("\nEnough matches found")
+
+    print("Scrape complete!")
     print(f"Total unique matches written: {matches_scraped}")
 
 async def get_battlelog_info(client, battlelog, headers):
