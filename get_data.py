@@ -12,7 +12,7 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-MATCHES_TO_FETCH = 500
+MATCHES_TO_FETCH = 3000
 
 # How many request we send at once
 CONCURRENCY_LIMIT = 20
@@ -20,8 +20,10 @@ semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
 # Wrapper function to apply the concurrency limit to your API calls
 async def fetch_player_safely(client, tag, headers):
+    formatted_tag = tag.replace("#", "%23")
+    url = f"https://api.brawlstars.com/v1/players/{formatted_tag}"
     async with semaphore:
-        return await get_player_info(client, tag, headers)
+        return await get_API_info(client, url, headers)
 
 def main():
     asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="gemGrab")) # , map_name="Pinball Dreams"
@@ -59,13 +61,13 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
 
             url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
 
-            response = requests.get(url, headers=headers)
+            response = await get_API_info(client, url, headers)
 
-            if response.status_code != 200:
-                print(f"Skipping {current_tag} - API Error (Status: {response.status_code})")
+            if response is None:
+                print(f"Skipping {current_tag} - API Error")
                 continue
 
-            battle_log = response.json().get("items", [])
+            battle_log = response["items"]
 
             # Mark player as checked
             checked_players.add(current_tag)
@@ -220,26 +222,31 @@ def write_battlelog_info(battlelog, players_info, player_tag):
         # except KeyError:
         #     continue
 
-
-async def get_player_info(client, tag, headers):
-    """Takes in an async client, tag, and headers.
-    Returns the JSON data dictionary from the Supercell API about player info.
+async def get_API_info(client, url, headers):
+    """Takes in an async client, url, and headers.
+    Returns the JSON data dictionary from the Supercell API with specific url.
     """
-    formatted_tag = tag.replace("#", "%23")
-    url = f"https://api.brawlstars.com/v1/players/{formatted_tag}"
-    try:
-        response = await client.get(url, headers=headers, timeout=10.0)
-        
-        if response.status_code != 200:
-            if response.status_code == 429:
-                print(f"Data for {tag} unavailable - Too many requests")
-            # print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
-            return None
-        return response.json()
-        
-    except Exception as e:
-        print(f"Network error fetching {tag}: {e}")
-        return None
+    tag = url.split("%23")[1].split("/")[0]
+    while True:
+        try:
+            response = await client.get(url, headers=headers, timeout=10.0)
+            
+            if response.status_code == 200:
+                return response.json()
+                
+            elif response.status_code == 429:
+                print(f"Rate limited for {tag}. Waiting 1 seconds to retry...")
+                await asyncio.sleep(1)
+                continue
+                
+            else:
+                #print(f"Data for {tag} unavailable - API Error (Status: {response.status_code})")
+                return None
+                
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
+            # Catches network drops/timeouts and retries
+            print(f"Network error fetching {tag}: {e}. Retrying in 1 seconds...")
+            await asyncio.sleep(1)
 
 def print_battle_data(battle_log_item):
     # Extract the battle time and event details
