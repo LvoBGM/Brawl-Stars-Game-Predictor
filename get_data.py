@@ -10,6 +10,7 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
+MATCH_ID_FILE = "matches.txt"
 STARTING_TAG = os.getenv("TAG")
 
 MATCHES_TO_FETCH = 10000
@@ -18,6 +19,7 @@ PLAYERS_TO_SEARCH_CONCURRENTLY = 8 # Amount of players the script will request t
 # How many request we send at once
 CONCURRENCY_LIMIT = 20
 semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+TIMEOUT = httpx.Timeout(10.0, read=20.0)
 
 # Wrapper function to apply the concurrency limit to your API calls
 async def fetch_player_safely(client, tag, headers):
@@ -27,7 +29,7 @@ async def fetch_player_safely(client, tag, headers):
         return await get_API_info(client, url, headers)
 
 def main():
-    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Grass Knot")) # 
+    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Sunny Soccer")) # 
 
 async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_name=None):
     """
@@ -45,6 +47,10 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
     
     checked_players = set()
     checked_matches = set()
+
+    checked_matches = load_match_ids()
+
+    print(len(checked_matches))
     
     player_queue = [starting_tag]
     player_battlelogs = {}
@@ -52,8 +58,9 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
     matches_scraped = 0
     
     print(f"Starting scrape. Target: {matches_to_fetch} matches.")
-    async with httpx.AsyncClient() as client:
-        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f, \
+             open(MATCH_ID_FILE, mode='a', newline='', encoding='utf-8') as match_id_file:
             writer = csv.writer(f)
 
             while player_queue and matches_scraped < matches_to_fetch:
@@ -122,6 +129,7 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
                         # New match found! Mark it and write it.
                         battlelog.append(match)
                         checked_matches.add(unique_match_id)
+                        match_id_file.write(unique_match_id + "\n")
 
                 # Get all player information we will need
                 battlelog_players = await get_battlelog_info(client, battlelog, headers)
@@ -304,6 +312,19 @@ def print_battle_data(battle_log_item):
             print(f"  Rank {rank}: {player.get('name')} | Brawler: {brawler.get('name')} (Power {brawler.get('power')})")
             
     print("=" * 24 + "\n")
+
+def load_match_ids():
+    """Loads any cached match ids from previos look up attempts and returns them as a set"""
+    if os.path.exists(MATCH_ID_FILE):
+        with open(MATCH_ID_FILE, mode="r", encoding="utf-8") as f:
+            checked_matches = set(f.read().splitlines())
+    else:
+        print(f"No cached matches found.")
+        return set()
+
+    print(f"Loaded {len(checked_matches)} cached matches into memory.")
+
+    return checked_matches
 
 if __name__ == "__main__":
     main()
