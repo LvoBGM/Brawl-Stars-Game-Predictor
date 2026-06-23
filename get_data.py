@@ -1,4 +1,4 @@
-import requests
+import csv
 import os
 import httpx
 import asyncio
@@ -12,7 +12,7 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 STARTING_TAG = os.getenv("TAG")
 
-MATCHES_TO_FETCH = 3000
+MATCHES_TO_FETCH = 10000
 PLAYERS_TO_SEARCH_CONCURRENTLY = 8 # Amount of players the script will request the battlelogs from at a time
 
 # How many request we send at once
@@ -27,7 +27,7 @@ async def fetch_player_safely(client, tag, headers):
         return await get_API_info(client, url, headers)
 
 def main():
-    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="gemGrab")) # , map_name="Pinball Dreams"
+    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Grass Knot")) # 
 
 async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_name=None):
     """
@@ -53,83 +53,86 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
     
     print(f"Starting scrape. Target: {matches_to_fetch} matches.")
     async with httpx.AsyncClient() as client:
-        while player_queue and matches_scraped < matches_to_fetch:
-            # Get the next player in the queue
-            current_tag = player_queue.pop(0)
+        with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
 
-            if current_tag in player_battlelogs:
-                battle_log = player_battlelogs.pop(current_tag)
-            else:   
-                # Return current tag to the start of the queue
-                player_queue.insert(0, starting_tag)
-                # Select tags to fetch
-                tags_to_fetch = player_queue[:PLAYERS_TO_SEARCH_CONCURRENTLY]
+            while player_queue and matches_scraped < matches_to_fetch:
+                # Get the next player in the queue
+                current_tag = player_queue.pop(0)
 
-                api_calls = []
-                for tag in tags_to_fetch:
-                    # Format the tag
-                    formatted_tag = tag.replace("#", "%23")
-                    url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
-                    api_calls.append(get_API_info(client, url, headers))
+                if current_tag in player_battlelogs:
+                    battle_log = player_battlelogs.pop(current_tag)
+                else:   
+                    # Return current tag to the start of the queue
+                    player_queue.insert(0, starting_tag)
+                    # Select tags to fetch
+                    tags_to_fetch = player_queue[:PLAYERS_TO_SEARCH_CONCURRENTLY]
 
-                responses = await asyncio.gather(*api_calls)
-                for tag, response in zip(tags_to_fetch, responses):
-                    if response is not None:
-                        player_battlelogs[tag] = response["items"]
-                # Restart loop after fetching new data
-                continue
+                    api_calls = []
+                    for tag in tags_to_fetch:
+                        # Format the tag
+                        formatted_tag = tag.replace("#", "%23")
+                        url = f"https://api.brawlstars.com/v1/players/{formatted_tag}/battlelog"
+                        api_calls.append(get_API_info(client, url, headers))
 
-            # Mark player as checked
-            checked_players.add(current_tag)
-            print(f"[{matches_scraped}/{matches_to_fetch}] Scraped player log: {current_tag}")
-
-            battlelog = []
-            for match in battle_log:
-                event = match["event"]
-                battle = match["battle"]
-
-                match_mode = event["mode"]
-                match_map = event["map"]
-                battle_time = match["battleTime"]
-
-                # Filter by game mode and map (if provided)
-                if game_mode and match_mode != game_mode:
-                    continue
-                if map_name and match_map != map_name:
+                    responses = await asyncio.gather(*api_calls)
+                    for tag, response in zip(tags_to_fetch, responses):
+                        if response is not None:
+                            player_battlelogs[tag] = response["items"]
+                    # Restart loop after fetching new data
                     continue
 
-                # Ignore friendly matches
-                if match["battle"]["type"] == "friendly":
-                    continue
+                # Mark player as checked
+                checked_players.add(current_tag)
+                print(f"[{matches_scraped}/{matches_to_fetch}] Scraped player log: {current_tag}")
 
-                # Extract player tags from the match
-                match_player_tags = []
-                if "teams" in battle:
-                    for team in battle["teams"]:
-                        for p in team:
+                battlelog = []
+                for match in battle_log:
+                    event = match["event"]
+                    battle = match["battle"]
+
+                    match_mode = event["mode"]
+                    match_map = event["map"]
+                    battle_time = match["battleTime"]
+
+                    # Filter by game mode and map (if provided)
+                    if game_mode and match_mode != game_mode:
+                        continue
+                    if map_name and match_map != map_name:
+                        continue
+
+                    # Ignore friendly matches
+                    if match["battle"]["type"] == "friendly":
+                        continue
+
+                    # Extract player tags from the match
+                    match_player_tags = []
+                    if "teams" in battle:
+                        for team in battle["teams"]:
+                            for p in team:
+                                match_player_tags.append(p["tag"])
+                    elif "players" in battle:
+                        for p in battle["players"]:
                             match_player_tags.append(p["tag"])
-                elif "players" in battle:
-                    for p in battle["players"]:
-                        match_player_tags.append(p["tag"])
 
-                # Check for duplicate matches
-                unique_match_id = f"{battle_time}_{''.join(sorted(match_player_tags))}"
+                    # Check for duplicate matches
+                    unique_match_id = f"{battle_time}_{''.join(sorted(match_player_tags))}"
 
-                if unique_match_id not in checked_matches:
-                    # New match found! Mark it and write it.
-                    battlelog.append(match)
-                    checked_matches.add(unique_match_id)
+                    if unique_match_id not in checked_matches:
+                        # New match found! Mark it and write it.
+                        battlelog.append(match)
+                        checked_matches.add(unique_match_id)
 
-            # Get all player information we will need
-            battlelog_players = await get_battlelog_info(client, battlelog, headers)
+                # Get all player information we will need
+                battlelog_players = await get_battlelog_info(client, battlelog, headers)
 
-            # Add new tags to the queue
-            for tag in battlelog_players.keys():
-                if tag not in checked_players and tag not in player_queue:
-                        player_queue.append(tag)
+                # Add new tags to the queue
+                for tag in battlelog_players.keys():
+                    if tag not in checked_players and tag not in player_queue:
+                            player_queue.append(tag)
 
-            matches_scraped += len(battlelog)
-            write_battlelog_info(battlelog, battlelog_players, current_tag)
+                matches_scraped += len(battlelog)
+                write_battlelog_info(writer, battlelog, battlelog_players, current_tag)
             
     if not player_queue:
         print("\nNo players left to search")
@@ -205,7 +208,7 @@ async def get_battlelog_info(client, battlelog, headers):
             players_info.update(match_player_info)
     return players_info
 
-def write_battlelog_info(battlelog, players_info, player_tag):
+def write_battlelog_info(writer, battlelog, players_info, player_tag):
     """Write the wanted information from the battlelog into the data csv file"""
     for match in battlelog:
         # ignore draws for now
@@ -230,7 +233,7 @@ def write_battlelog_info(battlelog, players_info, player_tag):
         # TODO: Refactor so that the writter to the csv only eneds the players list and not the tags as well
         # There might be a broken tag in a match still, so um ignore it (TODO: fix this this is a bandaid solution)
         # #JGG9CG009 broken player
-        write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
+        write_match_data_1(writer, tags, match, players_info, player_tag)
         # try:
         #     write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
         # except KeyError:
