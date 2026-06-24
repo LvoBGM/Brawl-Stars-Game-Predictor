@@ -10,7 +10,14 @@ FEATURES = [
     "brawler",
     "3vs3Victories",
     "totalPrestigeLevel",
-    "highestAllTimeRankedElo"
+    "highestAllTimeRankedElo",
+
+    "eloDiffAvg",        # Difference in average team rank
+    "eloDiffMax",        # Compares the highest-ranked carrying player on each team
+    "eloDiffMin",        # Compares the weakest link player on each team
+    "winsDiffTotal",     # Overall 3v3 experience difference between teams
+    "winsDiffMax",       # Difference between the most veteran players
+    "prestigeDiffTotal"  # Account overall status/investment tier gaps
 ]
 
 def write_match_data_1(writer, match_tags, match, players_info, player_tag):
@@ -41,19 +48,68 @@ def write_match_data_1(writer, match_tags, match, players_info, player_tag):
             row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
         else:
             row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
-
+    
     # Write to the CSV
     writer.writerow(row_data)
 
-def write_match_data_2(file_name, match_tags, match, players_info, player_tag):
+
+def write_match_data_2(writer, match_tags, match, players_info, player_tag):
     """Writes player tag"""
-    with open(file_name, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
+    row_data = []
 
-        row_data = []
+    blueWins = []
+    bluePrestige = []
+    blueElo = []
 
-        for tag in match_tags:
-            row_data.append(tag)
+    redWins = []
+    redPrestige = []
+    redElo = []
 
-        # Write to the CSV
-        writer.writerow(row_data)
+    for tag in match_tags:
+        in_blue_team = tag in match_tags[:3]
+        
+        wins = players_info[tag]['3vs3Victories']
+        prestige = players_info[tag]['totalPrestigeLevel']
+        elo = players_info[tag]['highestAllTimeRankedElo']
+        
+        if in_blue_team:
+            blueWins.append(wins)
+            bluePrestige.append(prestige)
+            blueElo.append(elo)
+        else:
+            redWins.append(wins)
+            redPrestige.append(prestige)
+            redElo.append(elo)
+    if "eloDiffAvg" in FEATURES:
+        eloDiffAvg = (sum(blueElo) / 3) - (sum(redElo) / 3)
+        row_data.append(eloDiffAvg)
+
+    if "eloDiffMax" in FEATURES:
+        eloDiffMax = max(blueElo) - max(redElo)
+        row_data.append(eloDiffMax)
+
+    if "eloDiffMin" in FEATURES:
+        eloDiffMin = min(blueElo) - min(redElo)
+        row_data.append(eloDiffMin)
+
+    if "winsDiffTotal" in FEATURES:
+        winsDiffTotal = sum(blueWins) - sum(redWins)
+        row_data.append(winsDiffTotal)
+
+    if "winsDiffMax" in FEATURES:
+        winsDiffMax = max(blueWins) - max(redWins)
+        row_data.append(winsDiffMax)
+
+    if "prestigeDiffTotal" in FEATURES:
+        prestigeDiffTotal = sum(bluePrestige) - sum(redPrestige)
+        row_data.append(prestigeDiffTotal)
+
+    # Insert game result
+    if "teams" in match["battle"]:
+        if player_tag in match_tags[:3]:
+            row_data.append(TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+        else:
+            row_data.append(-TRUE_BLUE_RESULT_MAP[match["battle"]["result"]])
+    
+    # Write to the CSV
+    writer.writerow(row_data)
