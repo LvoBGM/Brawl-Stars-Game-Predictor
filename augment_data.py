@@ -95,6 +95,10 @@ def augment_player_swap(X, y, permutations: int = 6, portion: float = 1.0):
         for i in range(permutations):
             augmented_y.append(result)
 
+    # Add not augmented data
+    augmented_X.extend(X[cutoff:])
+    augmented_y.extend(y[cutoff:])
+
     return (augmented_X, augmented_y)
 
 
