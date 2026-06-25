@@ -78,5 +78,5 @@ def test_augment_team_swap():
 
     print("All tests passed!")
 
-
-test_augment_team_swap()
+if __name__ == "__main__":
+    test_augment_team_swap()
