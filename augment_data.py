@@ -13,6 +13,86 @@ def augment_team_swap(X, y):
     
     return (augmented_X, augmented_y)
 
+def augment_player_swap(X, y, permutations: int = 6, portion: float = 1.0):
+    """
+    Augments match data by generating additional training samples through
+    random permutations of player order within each team.
+
+    Parameters
+    ----------
+    X : list[list]
+        Feature matrix where each row represents a match.
+        Each match contains players grouped sequentially by team.
+
+    y : list[int]
+        Match results (e.g., 1 for blue win, -1 for red win).
+
+    permutations : int, optional (default=6)
+        Number of random player-order permutations to generate per match.
+
+    portion : float, optional (default=1.0)
+        Fraction of dataset to apply augmentation to.
+        1.0 = augment all matches, 0.5 = half, etc.
+
+    Returns
+    -------
+    tuple (augmented_X, augmented_y)
+        Augmented dataset including original and permuted versions.
+    """
+    if portion <= 0 or portion > 1:
+        raise ValueError("Value of 'portion' requires a value in range (0.0; 1.0].")
+    if permutations < 0 or permutations > 6:
+        raise ValueError("Value of 'portion' requires an integer value in range [1; 6].")
+
+    augmented_X = []
+    augmented_y = []
+
+    cutoff = int(len(X) * portion)
+    for match, result in zip(X[:cutoff], y[:cutoff]):
+        data_per_player = len(match) // 6
+
+        # Split the data into a list of 6 lists, where each list contains the info of 1 player
+        data = [
+            match[i * data_per_player : (i + 1) * data_per_player]
+            for i in range(6)
+            ]
+        
+        blue = data[:3]
+        red = data[3:]
+
+        blue_perms = list(itertools.permutations(blue))
+        red_perms = list(itertools.permutations(red))
+
+        # Unsplit those lists containing the player info
+        cleaned_perms = []
+        for perm in blue_perms:
+            cleaned_perm = []
+            for player_data in perm:
+                cleaned_perm.extend(player_data)
+            cleaned_perms.append(tuple(cleaned_perm))
+
+        blue_perms = cleaned_perms
+
+        cleaned_perms = []
+        for perm in red_perms:
+            cleaned_perm = []
+            for player_data in perm:
+                cleaned_perm.extend(player_data)
+            cleaned_perms.append(tuple(cleaned_perm))
+        
+        red_perms = cleaned_perms
+
+
+        permuted_matches = []
+        for blue_perm in blue_perms:
+            for red_perm in red_perms:
+                permuted_matches.append(list(blue_perm + red_perm))
+        
+        augmented_X.extend(random.sample(permuted_matches, permutations))
+        for i in range(permutations):
+            augmented_y.append(result)
+
+    return (augmented_X, augmented_y)
 def test_augment_team_swap():
     # One fake match:
     # Blue team: A B C
