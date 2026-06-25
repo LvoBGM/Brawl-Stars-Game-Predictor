@@ -1,3 +1,6 @@
+import itertools
+import random
+
 def augment_team_swap(X, y):
     """Takes in a set of match data and result of said match and returns the same data in a tuple,
     but it adds a new mirror match, where blue and red are swapped and the match result is reversed"""
@@ -93,6 +96,8 @@ def augment_player_swap(X, y, permutations: int = 6, portion: float = 1.0):
             augmented_y.append(result)
 
     return (augmented_X, augmented_y)
+
+
 def test_augment_team_swap():
     # One fake match:
     # Blue team: A B C
@@ -158,5 +163,51 @@ def test_augment_team_swap():
 
     print("All tests passed!")
 
+def test_augment_player_swap():
+    random.seed(42)  # makes sampling deterministic
+
+    X = [[
+        "A1", 1,
+        "A2", 2,
+        "A3", 3,
+        "B1", 4,
+        "B2", 5,
+        "B3", 6
+    ]]
+
+    y = [1]
+
+    augmented_X, augmented_y = augment_player_swap(
+        X,
+        y,
+        permutations=3,
+        portion=1.0
+    )
+
+    # Correct number of outputs
+    assert len(augmented_X) == 3
+    assert len(augmented_y) == 3
+
+    # All labels identical
+    assert augmented_y == [1, 1, 1]
+
+    # Each match still has same structure (6 players × 2 features = 12 values)
+    for match in augmented_X:
+        assert len(match) == 12
+
+    # Ensure all original values still exist in at least one output
+    flat_original = set(X[0])
+    flat_augmented = set()
+    for match in augmented_X:
+        flat_augmented.update(match)
+
+    assert flat_original == flat_augmented
+
+    print(X)
+    print(augmented_X)
+
+    print("All tests passed!")
+
 if __name__ == "__main__":
     test_augment_team_swap()
+    test_augment_player_swap()
