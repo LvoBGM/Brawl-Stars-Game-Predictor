@@ -6,12 +6,17 @@ from catboost import CatBoostClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from csv_data_writters import FEATURES as FEATURES
+from augment_data import augment_team_swap
 
 TEST_SIZE = 0.4
 
 # Brawler name are currently strings, tell catboost where these are so that it can handle them
 PLAYERS_PER_MATCH = 6
 CAT_FEATURES_INDICES = [x*len(FEATURES) for x in range(PLAYERS_PER_MATCH)]
+
+DATA_AUGMENTATIONS = {
+    "TEAMS_SWAP": True,
+}
 
 def main():
     # Check command-line arguments
@@ -28,14 +33,18 @@ def main():
         X, y, test_size=TEST_SIZE
     )
 
+    if DATA_AUGMENTATIONS["TEAMS_SWAP"]:
+        X_train, y_train = augment_team_swap(X_train.values.tolist(), y_train)
+        X_train = pd.DataFrame(X_train)
+
     model = CatBoostClassifier(
-        iterations=200,
-        learning_rate=0.1,
+        iterations=1000,
+        learning_rate=0.05,
         depth=6,
-        verbose=10
+        verbose=50
     )
 
-    model.fit(X_train, y_train, cat_features=CAT_FEATURES_INDICES)
+    model.fit(X_train, y_train, cat_features=CAT_FEATURES_INDICES) #
 
     predictions = model.predict(X_test)
     accuracy = accuracy_score(y_test, predictions)
@@ -77,9 +86,8 @@ def load_data(file_name=None):
                     int(row[base + 2]), # Prestige
                     int(row[base + 3])  # Highest ranked elo
                 ])
-            
             evidence.append(match_evidence)
-            labels.append([row[-1]])
+            labels.append(int(row[-1]))
     
     return (evidence, labels)
     
