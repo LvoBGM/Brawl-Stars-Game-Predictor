@@ -6,7 +6,7 @@ from catboost import CatBoostClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from csv_data_writters import FEATURES as FEATURES
-from augment_data import augment_team_swap
+from augment_data import augment_team_swap, augment_player_swap
 
 TEST_SIZE = 0.4
 
@@ -16,6 +16,7 @@ CAT_FEATURES_INDICES = [x*len(FEATURES) for x in range(PLAYERS_PER_MATCH)]
 
 DATA_AUGMENTATIONS = {
     "TEAMS_SWAP": True,
+    "PLAYER_SWAP": False
 }
 
 def main():
@@ -36,6 +37,9 @@ def main():
     if DATA_AUGMENTATIONS["TEAMS_SWAP"]:
         X_train, y_train = augment_team_swap(X_train.values.tolist(), y_train)
         X_train = pd.DataFrame(X_train)
+    if DATA_AUGMENTATIONS["PLAYER_SWAP"]:
+        X_train, y_train = augment_player_swap(X_train.values.tolist(), y_train, permutations=2, portion=0.5)
+        X_train = pd.DataFrame(X_train)
 
     model = CatBoostClassifier(
         iterations=1000,
@@ -43,6 +47,8 @@ def main():
         depth=6,
         verbose=50
     )
+
+    print("Amount of training data: ", len(X_train))
 
     model.fit(X_train, y_train, cat_features=CAT_FEATURES_INDICES) #
 
@@ -62,7 +68,7 @@ def main():
 
     df = df.sort_values(by="importance", ascending=False)
 
-    print(df.to_string(index=False))
+    #print(df.to_string(index=False))
 
     model.save_model("model1.cbm")
 
@@ -84,11 +90,11 @@ def load_data(file_name=None):
                     row[base],          # Brawler
                     int(row[base + 1]), # Wins
                     int(row[base + 2]), # Prestige
-                    int(row[base + 3])  # Highest ranked elo
+                    int(row[base + 3]),  # Highest ranked elo
+                    int(row[base + 4])  # Trophies
                 ])
             evidence.append(match_evidence)
             labels.append(int(row[-1]))
-    
     return (evidence, labels)
     
 if __name__ == "__main__":
