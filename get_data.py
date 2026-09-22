@@ -86,6 +86,8 @@ async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_n
                     for tag, response in zip(tags_to_fetch, responses):
                         if response is not None:
                             player_battlelogs[tag] = response["items"]
+                        else:
+                            print("Responce was None")
                     # Restart loop after fetching new data
                     continue
 
