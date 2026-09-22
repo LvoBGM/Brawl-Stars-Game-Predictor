@@ -2,9 +2,11 @@ import csv
 import os
 import httpx
 import asyncio
+import sqlite3
 from dotenv import load_dotenv
 from collections import deque
 from csv_data_writters import write_match_data_1, write_match_data_2
+from sql_writers import setup_database, write_match_to_database
 
 load_dotenv()
 
@@ -12,6 +14,7 @@ API_KEY = os.getenv("API_KEY")
 CSV_FILE = "data.csv"
 MATCH_ID_FILE = "matches.txt"
 STARTING_TAG = os.getenv("TAG")
+DB_PATH = "api_data.db"
 
 MATCHES_TO_FETCH = 10000
 PLAYERS_TO_SEARCH_CONCURRENTLY = 8 # Amount of players the script will request the battlelogs from at a time
@@ -29,7 +32,10 @@ async def fetch_player_safely(client, tag, headers):
         return await get_API_info(client, url, headers)
 
 def main():
-    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall", map_name="Sunny Soccer")) # 
+    # Connect to database
+    setup_database(DB_PATH)
+
+    asyncio.run(scrape_data(STARTING_TAG, API_KEY, matches_to_fetch=MATCHES_TO_FETCH, game_mode="brawlBall")) # map_name="Goalies"
 
 async def scrape_data(starting_tag, key, matches_to_fetch, game_mode=None, map_name=None):
     """
@@ -243,7 +249,8 @@ def write_battlelog_info(writer, battlelog, players_info, player_tag):
         # TODO: Refactor so that the writter to the csv only eneds the players list and not the tags as well
         # There might be a broken tag in a match still, so um ignore it (TODO: fix this this is a bandaid solution)
         # #JGG9CG009 broken player
-        write_match_data_1(writer, tags, match, players_info, player_tag)
+        # write_match_data_1(writer, tags, match, players_info, player_tag)
+        write_match_to_database(DB_PATH, tags, match, players_info, player_tag)
         # try:
         #     write_match_data_1(CSV_FILE, tags, match, players_info, player_tag)
         # except KeyError:
