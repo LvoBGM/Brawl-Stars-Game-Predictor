@@ -10,8 +10,11 @@ __pycache__/
 
 *.csv
 
+*.db
+
 catboost_info/
 models/
+training_data/
 
 # File containing match ids
-matches.txt
+*.txt
